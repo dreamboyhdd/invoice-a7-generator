@@ -1,0 +1,1413 @@
+<!doctype html>
+<html lang="vi" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
+  <title>Invoice Generator</title>
+  
+  <!-- DaisyUI + Tailwind CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.19/dist/full.min.css" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#0b63b6',
+            'primary-focus': '#0959a0',
+          }
+        }
+      }
+    }
+  </script>
+  
+  <style>
+    /* Desktop: white background, Mobile: gray background */
+    html {
+      overflow-y: scroll;
+    }
+    
+    body {
+      display: flex;
+      justify-content: center;
+      background: #ebebeb;
+      min-height: 100vh;
+      margin: 0;
+    }
+    
+    .app-wrapper {
+      width: 100%;
+      max-width: 440px;
+      position: relative;
+      background: #f5f5f5;
+      overflow-x: hidden;
+      min-height: 100vh;
+    }
+    
+    /* Content sections */
+    .content-section {
+      display: none;
+      min-height: calc(100vh - 140px);
+      padding: 12px 12px 50px 12px;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+    
+    .content-section.active {
+      display: block;
+    }
+    
+    /* Mobile-style cards with proper spacing */
+    .mobile-card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      margin-bottom: 12px;
+      padding: 16px;
+    }
+    
+    /* Invoice preview - larger and centered */
+    .preview-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 0 0 150px 0;
+      min-height: calc(100vh - 140px);
+    }
+    
+    .invoice-preview {
+      width: 74mm;
+      background: white;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      border: 1px solid #e5e7eb;
+      margin: 20px auto 150px auto;
+      transform: scale(1.3);
+      transform-origin: top center;
+    }
+    
+    .print-button-wrapper {
+      position: fixed;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      max-width: 440px;
+      width: 100%;
+      padding: 0 12px;
+      z-index: 40;
+      background: linear-gradient(to top, #f5f5f5 70%, transparent);
+      padding-top: 20px;
+      padding-bottom: 12px;
+    }
+    
+    .invoice-content {
+      padding: 3mm;
+      font-size: 12px;
+      color: #222;
+    }
+    
+    .invoice-logo {
+      width: 48px;
+      height: 48px;
+      background: #e8f1ff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      font-weight: 700;
+      color: #0b63b6;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    
+    .invoice-logo img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    
+    .invoice-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+      border: 1px solid #ddd;
+      margin-bottom: 8px;
+    }
+    
+    .invoice-table th,
+    .invoice-table td {
+      padding: 4px;
+      border: 1px solid #eee;
+    }
+    
+    .invoice-table th {
+      text-align: left;
+      font-weight: 700;
+      background: #f8f9fa;
+    }
+    
+    .invoice-table tfoot td {
+      padding-top: 4px;
+      border-top: 2px solid #e6eefc;
+      font-weight: 700;
+    }
+    
+    .logo-preview-box {
+      width: 64px;
+      height: 64px;
+      border: 2px solid #e5e7eb;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f9fafb;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+    
+    .logo-preview-box:hover {
+      border-color: #0b63b6;
+    }
+    
+    .logo-preview-box img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    
+    .logo-preview-text {
+      font-weight: 700;
+      color: #0b63b6;
+      font-size: 14px;
+      text-align: center;
+      padding: 4px;
+      word-break: break-all;
+    }
+    
+    /* Dropdown menu - ensure it appears above preview */
+    .dropdown-content {
+      z-index: 60 !important;
+    }
+    
+    /* Bottom navigation */
+    .btm-nav {
+      position: fixed;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      max-width: 440px;
+      width: 100%;
+      z-index: 50;
+      box-sizing: border-box;
+    }
+    
+    @media (max-width: 440px) {
+      .btm-nav {
+        left: 0;
+        transform: none;
+        max-width: 100%;
+      }
+      
+      .invoice-preview {
+        transform: scale(1.1);
+      }
+      
+      .print-button-wrapper {
+        left: 0;
+        transform: none;
+        max-width: 100%;
+      }
+    }
+    
+    /* Print styles for A7 */
+    @media print {
+      @page {
+        size: 74mm 210mm;
+        margin: 0;
+      }
+      
+      html, body {
+        width: 74mm;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+      }
+      
+      .navbar,
+      .btm-nav,
+      .print-button-wrapper,
+      #homeSection,
+      #settingsSection {
+        display: none !important;
+      }
+      
+      .app-wrapper {
+        width: 74mm;
+        background: white;
+      }
+      
+      #previewSection {
+        display: block !important;
+        padding: 0 !important;
+        min-height: 0 !important;
+      }
+      
+      .preview-wrapper {
+        padding: 0 !important;
+        min-height: 0 !important;
+        display: block !important;
+      }
+      
+      .invoice-preview {
+        width: 74mm !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        transform: none !important;
+        box-shadow: none !important;
+        border: none !important;
+        page-break-inside: avoid !important;
+      }
+      
+      .invoice-content {
+        width: 74mm !important;
+        padding: 3mm !important;
+        box-sizing: border-box !important;
+        page-break-inside: avoid !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  
+  <div class="app-wrapper">
+  
+  <!-- Professional Header -->
+  <div class="navbar bg-base-100 border-b border-base-300 shadow-sm" style="min-height: 60px; padding: 0 12px;">
+    <!-- Left: Action Icons -->
+    <div class="flex-none gap-2">
+      <!-- Theme Toggle -->
+      <label class="swap swap-rotate btn btn-ghost btn-sm btn-circle">
+        <input type="checkbox" id="themeToggle" />
+        <svg class="swap-off fill-current w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+          <path d="M5.64,17l-.71.71a1,1,0,0,0,0,1.41,1,1,0,0,0,1.41,0l.71-.71A1,1,0,0,0,5.64,17ZM5,12a1,1,0,0,0-1-1H3a1,1,0,0,0,0,2H4A1,1,0,0,0,5,12Zm7-7a1,1,0,0,0,1-1V3a1,1,0,0,0-2,0V4A1,1,0,0,0,12,5ZM5.64,7.05a1,1,0,0,0,.7.29,1,1,0,0,0,.71-.29,1,1,0,0,0,0-1.41l-.71-.71A1,1,0,0,0,4.93,6.34Zm12,.29a1,1,0,0,0,.7-.29l.71-.71a1,1,0,1,0-1.41-1.41L17,5.64a1,1,0,0,0,0,1.41A1,1,0,0,0,17.66,7.34ZM21,11H20a1,1,0,0,0,0,2h1a1,1,0,0,0,0-2Zm-9,8a1,1,0,0,0-1,1v1a1,1,0,0,0,2,0V20A1,1,0,0,0,12,19ZM18.36,17A1,1,0,0,0,17,18.36l.71.71a1,1,0,0,0,1.41,0,1,1,0,0,0,0-1.41ZM12,6.5A5.5,5.5,0,1,0,17.5,12,5.51,5.51,0,0,0,12,6.5Zm0,9A3.5,3.5,0,1,1,15.5,12,3.5,3.5,0,0,1,12,15.5Z"/>
+        </svg>
+        <svg class="swap-on fill-current w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+          <path d="M21.64,13a1,1,0,0,0-1.05-.14,8.05,8.05,0,0,1-3.37.73A8.15,8.15,0,0,1,9.08,5.49a8.59,8.59,0,0,1,.25-2A1,1,0,0,0,8,2.36,10.14,10.14,0,1,0,22,14.05,1,1,0,0,0,21.64,13Zm-9.5,6.69A8.14,8.14,0,0,1,7.08,5.22v.27A10.15,10.15,0,0,0,17.22,15.63a9.79,9.79,0,0,0,2.1-.22A8.11,8.11,0,0,1,12.14,19.73Z"/>
+        </svg>
+      </label>
+      
+      <!-- Notifications (Future feature) -->
+      <button class="btn btn-ghost btn-sm btn-circle" title="Thông báo (Sắp có)">
+        <div class="indicator">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+          </svg>
+          <span class="badge badge-xs badge-primary indicator-item" style="display:none;">3</span>
+        </div>
+      </button>
+      
+      <!-- Search (Future feature) -->
+      <button class="btn btn-ghost btn-sm btn-circle" title="Tìm kiếm (Sắp có)">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+      </button>
+    </div>
+    
+    <!-- Center: App Title -->
+    <div class="flex-1 text-center">
+      <span class="text-sm font-semibold text-base-content/80">Invoice Generator</span>
+    </div>
+    
+    <!-- Right: Shop Avatar & Menu -->
+    <div class="flex-none gap-2">
+      <!-- Stats (Future feature) -->
+      <button class="btn btn-ghost btn-sm btn-circle" title="Thống kê (Sắp có)">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        </svg>
+      </button>
+      
+      <!-- Shop Avatar -->
+      <div class="dropdown dropdown-end">
+        <label tabindex="0" class="btn btn-ghost btn-circle avatar">
+          <div class="w-8  rounded-full bg-primary/10 flex items-center justify-center overflow-hidden" id="shopAvatarContainer">
+            <img id="shopAvatarImg" style="display:none; width:100%; height:100%; object-fit:cover;" />
+            <span class="text-primary font-bold text-xs " id="shopAvatarText" style="display:none;">HD</span>
+          </div>
+        </label>
+        <ul tabindex="0" class="mt-3 p-2 shadow-lg menu menu-sm dropdown-content bg-base-100 rounded-box w-52 border border-base-300">
+          <li class="menu-title">
+            <span id="shopNameHeader" class="text-xs">HADO THANH LÝ</span>
+          </li>
+          <li><a onclick="switchTab(2)">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            Cài đặt
+          </a></li>
+          <li><a>
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Trợ giúp
+          </a></li>
+          <li><a>
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Về ứng dụng
+          </a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- HOME SECTION -->
+  <div id="homeSection" class="content-section active">
+    
+    <!-- Invoice Info (moved from Settings) -->
+    <div class="mobile-card">
+      <h2 class="text-base font-semibold mb-3 flex items-center gap-2">
+        <span>📋</span> Thông tin hóa đơn
+      </h2>
+      <div class="grid grid-cols-2 gap-2">
+        <div class="form-control">
+          <label class="label py-1">
+            <span class="label-text text-xs">Ngày</span>
+          </label>
+          <input id="invDate" type="text" placeholder="dd/mm/yyyy" class="input input-bordered input-sm" />
+        </div>
+        <div class="form-control">
+          <label class="label py-1">
+            <span class="label-text text-xs">Số HĐ</span>
+          </label>
+          <input id="invNo" type="text" value="0001" class="input input-bordered input-sm" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Product -->
+    <div class="mobile-card">
+      <h2 class="text-base font-semibold mb-3 flex items-center gap-2">
+        <span>🛒</span> Thêm sản phẩm
+      </h2>
+      
+      <div class="form-control">
+        <label class="label py-1">
+          <span class="label-text text-xs">Tên sản phẩm</span>
+        </label>
+        <input id="pName" type="text" placeholder="Nhập tên sản phẩm" class="input input-bordered input-sm" />
+      </div>
+      
+      <div class="grid grid-cols-2 gap-2 mt-2">
+        <div class="form-control">
+          <label class="label py-1">
+            <span class="label-text text-xs">Số lượng</span>
+          </label>
+          <input id="pQty" type="number" min="1" value="1" class="input input-bordered input-sm" />
+        </div>
+        <div class="form-control">
+          <label class="label py-1">
+            <span class="label-text text-xs">Đơn giá (VNĐ)</span>
+          </label>
+          <input id="pPrice" type="text" value="0" class="input input-bordered input-sm" />
+        </div>
+      </div>
+      
+      <button id="addItem" class="btn btn-primary btn-outline btn-sm w-full mt-3">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        </svg>
+        Thêm sản phẩm
+      </button>
+    </div>
+
+    <!-- Products List -->
+    <div class="mobile-card">
+      <h2 class="text-base font-semibold mb-3 flex items-center gap-2">
+        <span>📋</span> Danh sách (<span id="itemCount">0</span>)
+      </h2>
+      <div class="overflow-x-auto">
+        <table class="table table-xs w-full">
+          <thead>
+            <tr>
+              <th class="text-xs">Tên</th>
+              <th class="text-center text-xs w-12">SL</th>
+              <th class="text-right text-xs w-20">Giá</th>
+              <th class="w-10"></th>
+            </tr>
+          </thead>
+          <tbody id="itemsTableBody">
+            <tr id="emptyState">
+              <td colspan="4" class="text-center text-xs text-base-content/50 py-4">
+                Chưa có sản phẩm
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+
+    <!-- Payment Method -->
+    <div class="mobile-card">
+      <h2 class="text-base font-semibold mb-3 flex items-center gap-2">
+        <span>💳</span> Thanh toán
+      </h2>
+      <div class="flex flex-wrap gap-3 mb-2">
+        <label class="label cursor-pointer gap-2 p-0">
+          <input type="radio" name="payMethod" value="Tiền mặt" class="radio radio-primary radio-sm" checked />
+          <span class="label-text text-sm">Tiền mặt</span>
+        </label>
+        <label class="label cursor-pointer gap-2 p-0">
+          <input type="radio" name="payMethod" value="Chuyển khoản" class="radio radio-primary radio-sm" />
+          <span class="label-text text-sm">CK</span>
+        </label>
+        <label class="label cursor-pointer gap-2 p-0">
+          <input type="radio" name="payMethod" value="Thẻ" class="radio radio-primary radio-sm" />
+          <span class="label-text text-sm">Thẻ</span>
+        </label>
+      </div>
+      <label class="label cursor-pointer justify-start gap-2 p-0">
+        <input type="checkbox" id="showPayMethod" class="checkbox checkbox-primary checkbox-sm" checked />
+        <span class="label-text text-xs">Hiển thị trên HĐ</span>
+      </label>
+    </div>
+
+    <!-- Discount -->
+    <div class="mobile-card">
+      <h2 class="text-base font-semibold mb-3 flex items-center gap-2">
+        <span>🎁</span> Chiết khấu
+      </h2>
+      <div class="flex gap-3 mb-2">
+        <label class="label cursor-pointer gap-2 p-0">
+          <input type="radio" name="discountType" value="%" class="radio radio-primary radio-sm" checked />
+          <span class="label-text text-sm">%</span>
+        </label>
+        <label class="label cursor-pointer gap-2 p-0">
+          <input type="radio" name="discountType" value="VNĐ" class="radio radio-primary radio-sm" />
+          <span class="label-text text-sm">VNĐ</span>
+        </label>
+      </div>
+      <div class="form-control">
+        <input id="discountValue" type="number" min="0" max="100" value="0" placeholder="Nhập giá trị" class="input input-bordered input-sm" />
+        <label class="label">
+          <span class="label-text-alt text-xs text-base-content/60" id="discountHint">Từ 0-100%</span>
+        </label>
+      </div>
+      <label class="label cursor-pointer justify-start gap-2 p-0">
+        <input type="checkbox" id="showDiscount" class="checkbox checkbox-primary checkbox-sm" checked />
+        <span class="label-text text-xs">Hiển thị trên HĐ</span>
+      </label>
+    </div>
+
+    <!-- Clear Data Button -->
+    <div class="mobile-card">
+      <button id="clearData" class="btn btn-error btn-outline btn-sm w-full">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+        </svg>
+        Xóa tất cả dữ liệu
+      </button>
+    </div>
+
+  </div>
+
+  <!-- PREVIEW SECTION -->
+  <div id="previewSection" class="content-section">
+    <div class="preview-wrapper">
+      <div class="invoice-preview printable" id="invoicePreview">
+        <div class="invoice-content" id="invoiceContent">
+          
+          <!-- Invoice Header -->
+          <div class="flex justify-between items-center mb-1">
+            <div class="invoice-logo" id="logoView">
+              <div id="logoTextView">LOGO</div>
+              <img id="logoImgView" style="display:none;" />
+            </div>
+            <div class="text-right text-[11px]">
+              <div class="mb-0.5">Ngày: <strong id="dateView">[dd/mm/yyyy]</strong></div>
+              <div>Số HĐ: <strong id="noView">0001</strong></div>
+            </div>
+          </div>
+
+          <!-- Shop Info -->
+          <div class="text-center mb-3 pb-2 border-b border-blue-100">
+            <div class="font-bold text-[14px] mb-0.5" id="shopNameView">HADO THANH LÝ KÝ GỬI</div>
+            <div class="text-[11px] text-gray-600">
+              <div id="shopAddrView">30/7 Nguyễn Hiến Lê, P.13, Tân Bình, HCM</div>
+              <div id="shopPhoneView">0987406603</div>
+            </div>
+            <div class="text-[12px] font-semibold text-primary mt-1">Hóa đơn bán hàng</div>
+          </div>
+
+          <hr class="border-dashed border-blue-100 my-2" />
+
+          <!-- Items Table -->
+          <table class="invoice-table" id="itemsView">
+            <thead>
+              <tr>
+                <th>Tên hàng</th>
+                <th class="text-center" style="width:12%;">SL</th>
+                <th class="text-right" style="width:24%;">Đơn giá</th>
+                <th class="text-right" style="width:24%;">Thành tiền</th>
+              </tr>
+            </thead>
+            <tbody id="itemsViewBody"></tbody>
+            <tfoot>
+              <tr>
+                <td colspan="2"></td>
+                <td class="text-right">Tổng SL:</td>
+                <td class="text-right" id="totalQtyView">0</td>
+              </tr>
+              <tr>
+                <td colspan="2"></td>
+                <td class="text-right">Tổng cộng:</td>
+                <td class="text-right" id="sumView">0</td>
+              </tr>
+              <tr id="discountRow">
+                <td colspan="2"></td>
+                <td class="text-right">Chiết khấu:</td>
+                <td class="text-right" id="discountView">-0</td>
+              </tr>
+              <tr>
+                <td colspan="2"></td>
+                <td class="text-right">Thành tiền:</td>
+                <td class="text-right" id="totalView">0</td>
+              </tr>
+            </tfoot>
+          </table>
+
+          <div id="totalWords" class="text-[10px] text-right italic mt-1"></div>
+
+          <div id="payMethodRow" class="mt-1.5 text-[11px]">
+            Hình thức TT: <strong id="payMethodView">Tiền mặt</strong>
+          </div>
+
+          <div class="text-center text-[10px] text-gray-500 mt-1.5">
+            Cảm ơn quý khách! Hẹn gặp lại 💙
+          </div>
+
+        </div>
+      </div>
+      
+    </div>
+    
+    <!-- Print Button - Fixed at bottom -->
+    <div class="print-button-wrapper">
+       <div class="text-xs text-center text-base-content/60 mt-2">
+        Chọn "Lưu dưới dạng PDF" khi in
+      </div>
+      <button id="printBtn" class="btn btn-primary btn-outline btn-block">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+        </svg>
+        In hóa đơn
+      </button>
+   
+    </div>
+  </div>
+
+  <!-- SETTINGS SECTION -->
+  <div id="settingsSection" class="content-section">
+    
+    <!-- Logo Settings -->
+    <div class="mobile-card">
+      <h2 class="text-base font-semibold mb-3 flex items-center gap-2">
+        <span>🎨</span> Logo
+      </h2>
+      
+      <div class="form-control">
+        <label class="label py-1">
+          <span class="label-text text-xs">Chọn hình ảnh</span>
+        </label>
+        <input id="logoFile" type="file" accept="image/*" class="file-input file-input-bordered file-input-primary file-input-sm" />
+      </div>
+      
+      <div class="divider text-xs my-2">HOẶC</div>
+      
+      <div class="form-control">
+        <label class="label py-1">
+          <span class="label-text text-xs">Nhập text logo</span>
+        </label>
+        <input id="logoText" type="text" placeholder="VD: LOGO" class="input input-bordered input-sm" />
+      </div>
+      
+      <div class="flex justify-center mt-3">
+        <div class="logo-preview-box" id="logoPreview">
+          <div id="logoPreviewText" class="logo-preview-text">LOGO</div>
+          <img id="logoPreviewImg" style="display:none;" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Shop Info -->
+    <div class="mobile-card">
+      <h2 class="text-base font-semibold mb-3 flex items-center gap-2">
+        <span>🏪</span> Thông tin cửa hàng
+      </h2>
+      
+      <div class="form-control">
+        <label class="label py-1">
+          <span class="label-text text-xs">Tên cửa hàng</span>
+        </label>
+        <input id="shopName" type="text" value="HADO THANH LÝ KÝ GỬI" class="input input-bordered input-sm" />
+      </div>
+      
+      <div class="form-control">
+        <label class="label py-1">
+          <span class="label-text text-xs">Địa chỉ</span>
+        </label>
+        <input id="shopAddr" type="text" value="30/7 Nguyễn Hiến Lê, P.13, Tân Bình, HCM" class="input input-bordered input-sm" />
+      </div>
+      
+      <div class="form-control">
+        <label class="label py-1">
+          <span class="label-text text-xs">Số điện thoại</span>
+        </label>
+        <input id="shopPhone" type="text" value="0987406603" class="input input-bordered input-sm" />
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Bottom Navigation (Dock) -->
+  <div class="btm-nav btm-nav-sm">
+    <button class="active" data-section="homeSection">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+      </svg>
+      <span class="btm-nav-label text-xs">Home</span>
+    </button>
+    <button data-section="previewSection">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+      </svg>
+      <span class="btm-nav-label text-xs">Preview</span>
+    </button>
+    <button data-section="settingsSection">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+      </svg>
+      <span class="btm-nav-label text-xs">Settings</span>
+    </button>
+  </div>
+
+  </div><!-- end app-wrapper -->
+  
+  <!-- Toast Container -->
+  <div class="toast toast-top toast-center z-50" id="toastContainer"></div>
+
+<script>
+console.log('🚀 Invoice Generator Starting...');
+
+// Toast notification function
+function showToast(message, type = 'info') {
+  const toastContainer = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  
+  let alertClass = 'alert-info';
+  let icon = 'ℹ️';
+  
+  if (type === 'error') {
+    alertClass = 'alert-error';
+    icon = '❌';
+  } else if (type === 'success') {
+    alertClass = 'alert-success';
+    icon = '✅';
+  } else if (type === 'warning') {
+    alertClass = 'alert-warning';
+    icon = '⚠️';
+  }
+  
+  toast.className = `alert ${alertClass} shadow-lg`;
+  toast.innerHTML = `
+    <div class="flex items-center gap-2">
+      <span>${icon}</span>
+      <span class="text-sm">${message}</span>
+    </div>
+  `;
+  
+  toastContainer.appendChild(toast);
+  
+  // Auto remove after 3 seconds
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(-20px)';
+    toast.style.transition = 'all 0.3s ease';
+    setTimeout(() => {
+      toast.remove();
+    }, 300);
+  }, 3000);
+}
+
+
+// Theme switcher
+const themeToggle = document.getElementById('themeToggle');
+const html = document.documentElement;
+
+const savedTheme = localStorage.getItem('theme') || 'light';
+html.setAttribute('data-theme', savedTheme);
+if (savedTheme === 'dark') {
+  themeToggle.checked = true;
+}
+console.log('✅ Theme loaded:', savedTheme);
+
+themeToggle.addEventListener('change', (e) => {
+  const theme = e.target.checked ? 'dark' : 'light';
+  html.setAttribute('data-theme', theme);
+  localStorage.setItem('theme', theme);
+  console.log('🎨 Theme changed to:', theme);
+});
+
+// Section switching function (used by dock and menu)
+function switchTab(index) {
+  const sectionIds = ['homeSection', 'previewSection', 'settingsSection'];
+  const targetSection = sectionIds[index];
+  console.log('📍 Switching to section:', targetSection);
+  
+  const sections = document.querySelectorAll('.content-section');
+  sections.forEach(section => section.classList.remove('active'));
+  document.getElementById(targetSection).classList.add('active');
+  
+  const dockButtons = document.querySelectorAll('.btm-nav button');
+  dockButtons.forEach((btn, i) => {
+    if (i === index) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+  
+  window.scrollTo(0, 0);
+}
+
+// Section switching from dock
+const dockButtons = document.querySelectorAll('.btm-nav button');
+dockButtons.forEach((button, index) => {
+  button.addEventListener('click', () => {
+    switchTab(index);
+  });
+});
+
+// Storage keys
+const STORAGE_KEYS = {
+  shopName: 'invoice_shopName',
+  shopAddr: 'invoice_shopAddr',
+  shopPhone: 'invoice_shopPhone',
+  invDate: 'invoice_invDate',
+  invNo: 'invoice_invNo',
+  payMethod: 'invoice_payMethod',
+  showPayMethod: 'invoice_showPayMethod',
+  discountType: 'invoice_discountType',
+  discountValue: 'invoice_discountValue',
+  showDiscount: 'invoice_showDiscount',
+  logoText: 'invoice_logoText',
+  logoDataUrl: 'invoice_logoDataUrl',
+  items: 'invoice_items'
+};
+
+// State
+let items = [];
+let logoDataUrl = null;
+
+// Helpers
+function formatCurrency(n) {
+  if (isNaN(n)) n = 0;
+  return Number(n).toLocaleString('vi-VN');
+}
+
+function parseCurrency(str) {
+  if (!str) return 0;
+  return parseFloat(str.toString().replace(/[.,]/g, '')) || 0;
+}
+
+
+// Vietnamese number to words
+function readGroup(group) {
+  let readDigit = [" Không", " Một", " Hai", " Ba", " Bốn", " Năm", " Sáu", " Bảy", " Tám", " Chín"];
+  var temp = "";
+  if (group == "000") return "";
+  temp = readDigit[parseInt(group.substring(0, 1))] + " Trăm";
+  if (group.substring(1, 2) == "0")
+    if (group.substring(2, 3) == "0") return temp;
+    else {
+      temp += " Lẻ" + readDigit[parseInt(group.substring(2, 3))];
+      return temp;
+    }
+  else
+    temp += readDigit[parseInt(group.substring(1, 2))] + " Mươi";
+  if (group.substring(2, 3) == "5") temp += " Lăm";
+  else if (group.substring(2, 3) != "0") temp += readDigit[parseInt(group.substring(2, 3))];
+  return temp;
+}
+
+function readMoney(num) {
+  if ((num == null) || (num == "")) return "";
+  let temp = "";
+  num = Math.round(num).toString();
+  while (num.length < 18) {
+    num = "0" + num;
+  }
+  let g1 = num.substring(0, 3);
+  let g2 = num.substring(3, 6);
+  let g3 = num.substring(6, 9);
+  let g4 = num.substring(9, 12);
+  let g5 = num.substring(12, 15);
+  let g6 = num.substring(15, 18);
+  if (g1 != "000") {
+    temp = readGroup(g1);
+    temp += " Triệu";
+  }
+  if (g2 != "000") {
+    temp += readGroup(g2);
+    temp += " Nghìn";
+  }
+  if (g3 != "000") {
+    temp += readGroup(g3);
+    temp += " Tỷ";
+  } else if ("" != temp) {
+    temp += " Tỷ";
+  }
+  if (g4 != "000") {
+    temp += readGroup(g4);
+    temp += " Triệu";
+  }
+  if (g5 != "000") {
+    temp += readGroup(g5);
+    temp += " Nghìn";
+  }
+  temp = temp + readGroup(g6);
+  temp = temp.replaceAll("Một Mươi", "Mười");
+  temp = temp.trim();
+  temp = temp.replaceAll("Không Trăm", "");
+  temp = temp.trim();
+  temp = temp.replaceAll("Mười Không", "Mười");
+  temp = temp.trim();
+  temp = temp.replaceAll("Mươi Không", "Mươi");
+  temp = temp.trim();
+  if (temp.indexOf("Lẻ") == 0) temp = temp.substring(2);
+  temp = temp.trim();
+  temp = temp.replaceAll("Mươi Một", "Mươi Mốt");
+  temp = temp.trim();
+  let result = temp.substring(0, 1).toUpperCase() + temp.substring(1).toLowerCase();
+  return (result == "" ? "Không" : result) + " đồng";
+}
+
+// Delete item
+function deleteItem(idx) {
+  console.log('🗑️ Deleting item at index:', idx);
+  items.splice(idx, 1);
+  renderItems();
+  saveData();
+  updatePreview();
+}
+
+
+// Load data
+function loadData() {
+  console.log('📂 Loading data from localStorage...');
+  try {
+    const shopName = localStorage.getItem(STORAGE_KEYS.shopName);
+    const shopAddr = localStorage.getItem(STORAGE_KEYS.shopAddr);
+    const shopPhone = localStorage.getItem(STORAGE_KEYS.shopPhone);
+    const invDate = localStorage.getItem(STORAGE_KEYS.invDate);
+    const invNo = localStorage.getItem(STORAGE_KEYS.invNo);
+    const payMethod = localStorage.getItem(STORAGE_KEYS.payMethod);
+    const showPayMethod = localStorage.getItem(STORAGE_KEYS.showPayMethod);
+    const discountType = localStorage.getItem(STORAGE_KEYS.discountType);
+    const discountValue = localStorage.getItem(STORAGE_KEYS.discountValue);
+    const showDiscount = localStorage.getItem(STORAGE_KEYS.showDiscount);
+    const logoText = localStorage.getItem(STORAGE_KEYS.logoText);
+    const logoDataUrlStored = localStorage.getItem(STORAGE_KEYS.logoDataUrl);
+    const itemsJson = localStorage.getItem(STORAGE_KEYS.items);
+
+    if (shopName !== null) document.getElementById('shopName').value = shopName;
+    if (shopAddr !== null) document.getElementById('shopAddr').value = shopAddr;
+    if (shopPhone !== null) document.getElementById('shopPhone').value = shopPhone;
+    if (invDate !== null) document.getElementById('invDate').value = invDate;
+    if (invNo !== null) document.getElementById('invNo').value = invNo;
+
+    if (payMethod !== null) {
+      const payRadio = document.querySelector(`input[name="payMethod"][value="${payMethod}"]`);
+      if (payRadio) payRadio.checked = true;
+    }
+    if (showPayMethod !== null) document.getElementById('showPayMethod').checked = showPayMethod === 'true';
+
+    if (discountType !== null) {
+      const discRadio = document.querySelector(`input[name="discountType"][value="${discountType}"]`);
+      if (discRadio) discRadio.checked = true;
+    }
+    if (discountValue !== null) document.getElementById('discountValue').value = discountValue;
+    if (showDiscount !== null) document.getElementById('showDiscount').checked = showDiscount === 'true';
+    if (logoText !== null) document.getElementById('logoText').value = logoText;
+
+    if (logoDataUrlStored) {
+      logoDataUrl = logoDataUrlStored;
+      const img = document.getElementById('logoPreviewImg');
+      img.src = logoDataUrlStored;
+      img.style.display = 'block';
+      document.getElementById('logoPreviewText').style.display = 'none';
+    }
+
+    if (itemsJson) {
+      try {
+        items = JSON.parse(itemsJson) || [];
+        console.log('✅ Loaded', items.length, 'items');
+      } catch (e) {
+        items = [];
+        console.error('❌ Error parsing items:', e);
+      }
+    }
+  } catch (e) {
+    console.error('❌ loadData error:', e);
+  }
+}
+
+// Save data
+function saveData() {
+  console.log('💾 Saving data to localStorage...');
+  try {
+    localStorage.setItem(STORAGE_KEYS.shopName, document.getElementById('shopName').value);
+    localStorage.setItem(STORAGE_KEYS.shopAddr, document.getElementById('shopAddr').value);
+    localStorage.setItem(STORAGE_KEYS.shopPhone, document.getElementById('shopPhone').value);
+    localStorage.setItem(STORAGE_KEYS.invDate, document.getElementById('invDate').value);
+    localStorage.setItem(STORAGE_KEYS.invNo, document.getElementById('invNo').value);
+
+    const payMethodRadio = document.querySelector('input[name="payMethod"]:checked');
+    localStorage.setItem(STORAGE_KEYS.payMethod, payMethodRadio ? payMethodRadio.value : 'Tiền mặt');
+    localStorage.setItem(STORAGE_KEYS.showPayMethod, document.getElementById('showPayMethod').checked);
+
+    const discountTypeRadio = document.querySelector('input[name="discountType"]:checked');
+    localStorage.setItem(STORAGE_KEYS.discountType, discountTypeRadio ? discountTypeRadio.value : '%');
+    localStorage.setItem(STORAGE_KEYS.discountValue, document.getElementById('discountValue').value);
+    localStorage.setItem(STORAGE_KEYS.showDiscount, document.getElementById('showDiscount').checked);
+
+    localStorage.setItem(STORAGE_KEYS.logoText, document.getElementById('logoText').value || '');
+    if (logoDataUrl) localStorage.setItem(STORAGE_KEYS.logoDataUrl, logoDataUrl);
+    else localStorage.removeItem(STORAGE_KEYS.logoDataUrl);
+    localStorage.setItem(STORAGE_KEYS.items, JSON.stringify(items));
+    console.log('✅ Data saved successfully');
+  } catch (e) {
+    console.error('❌ saveData error:', e);
+  }
+}
+
+
+// Render items
+function renderItems() {
+  console.log('🔄 Rendering', items.length, 'items');
+  const tbody = document.getElementById('itemsTableBody');
+  document.getElementById('itemCount').textContent = items.length;
+  
+  if (!items || items.length === 0) {
+    tbody.innerHTML = '<tr id="emptyState"><td colspan="4" class="text-center text-xs text-base-content/50 py-4">Chưa có sản phẩm</td></tr>';
+    return;
+  }
+  let html = '';
+  items.forEach((it, idx) => {
+    html += `
+      <tr class="hover">
+        <td class="text-xs break-words">${it.name}</td>
+        <td class="text-center text-xs">${it.qty}</td>
+        <td class="text-right text-xs">${formatCurrency(it.price)}</td>
+        <td class="text-center">
+          <button class="btn btn-ghost btn-xs text-error" onclick="deleteItem(${idx})" title="Xóa">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+        </td>
+      </tr>
+    `;
+  });
+  tbody.innerHTML = html;
+}
+
+// Update shop header
+function updateShopHeader() {
+  const shopName = document.getElementById('shopName').value || 'HADO THANH LÝ KÝ GỬI';
+  document.getElementById('shopNameHeader').textContent = shopName;
+  
+  // Update avatar - show logo if available, otherwise show initials, otherwise empty
+  const avatarImg = document.getElementById('shopAvatarImg');
+  const avatarText = document.getElementById('shopAvatarText');
+  
+  if (logoDataUrl) {
+    // Show logo image
+    avatarImg.src = logoDataUrl;
+    avatarImg.style.display = 'block';
+    avatarText.style.display = 'none';
+    console.log('🖼️ Avatar: Using logo image');
+  } else {
+    const logoText = document.getElementById('logoText').value.trim();
+    if (logoText) {
+      // Show initials from logo text (first 1-2 characters)
+      let initials = '';
+      const words = logoText.split(' ').filter(w => w.length > 0);
+      
+      if (words.length >= 2) {
+        // Take first letter of first 2 words
+        initials = words[0][0] + words[1][0];
+      } else if (words.length === 1) {
+        // Take first 1-2 characters of single word
+        initials = words[0].substring(0, 2);
+      }
+      
+      avatarText.textContent = initials.toUpperCase();
+      avatarText.style.display = 'block';
+      avatarImg.style.display = 'none';
+      console.log('📝 Avatar: Using initials:', initials);
+    } else {
+      // Show nothing (just background)
+      avatarImg.style.display = 'none';
+      avatarText.style.display = 'none';
+      console.log('⚪ Avatar: Empty background');
+    }
+  }
+}
+
+// Update preview
+function updatePreview() {
+  console.log('🔄 Updating preview...');
+  const shopName = document.getElementById('shopName').value || 'HADO THANH LÝ KÝ GỬI';
+  document.getElementById('shopNameView').textContent = shopName;
+  document.getElementById('shopAddrView').textContent = document.getElementById('shopAddr').value || '30/7 Nguyễn Hiến Lê, P.13, Tân Bình, HCM';
+  document.getElementById('shopPhoneView').textContent = document.getElementById('shopPhone').value || '0987406603';
+  document.getElementById('dateView').textContent = document.getElementById('invDate').value || new Date().toLocaleDateString('vi-VN');
+  document.getElementById('noView').textContent = document.getElementById('invNo').value || '';
+  
+  updateShopHeader();
+
+  const payMethodRadio = document.querySelector('input[name="payMethod"]:checked');
+  document.getElementById('payMethodView').textContent = payMethodRadio ? payMethodRadio.value : 'Tiền mặt';
+
+  // Logo
+  const logoTextView = document.getElementById('logoTextView');
+  const logoImgView = document.getElementById('logoImgView');
+  if (logoDataUrl) {
+    logoImgView.src = logoDataUrl;
+    logoImgView.style.display = 'block';
+    logoTextView.style.display = 'none';
+  } else {
+    const logoText = document.getElementById('logoText').value.trim() || 'LOGO';
+    logoTextView.textContent = logoText;
+    logoTextView.style.display = 'block';
+    logoImgView.style.display = 'none';
+  }
+
+  // Render preview items
+  const tbody = document.getElementById('itemsViewBody');
+  let html = '';
+  let sum = 0;
+  items.forEach(it => {
+    html += `
+      <tr>
+        <td class="break-words">${it.name}</td>
+        <td class="text-center">${it.qty}</td>
+        <td class="text-right">${formatCurrency(it.price)}</td>
+        <td class="text-right">${formatCurrency(it.qty * it.price)}</td>
+      </tr>
+    `;
+    sum += it.qty * it.price;
+  });
+  tbody.innerHTML = html;
+
+  // Discount
+  const discountTypeRadio = document.querySelector('input[name="discountType"]:checked');
+  const discountType = discountTypeRadio ? discountTypeRadio.value : '%';
+  const discountVal = parseFloat(document.getElementById('discountValue').value) || 0;
+  let discount = 0;
+  if (discountType === '%') {
+    discount = sum * (discountVal / 100);
+  } else {
+    discount = discountVal;
+  }
+  const total = sum - discount;
+  const totalQty = items.reduce((acc, it) => acc + it.qty, 0);
+
+  document.getElementById('totalQtyView').textContent = totalQty;
+  document.getElementById('sumView').textContent = formatCurrency(sum);
+  document.getElementById('discountView').textContent = '-' + formatCurrency(discount);
+  document.getElementById('totalView').textContent = formatCurrency(total);
+
+  const totalInt = Math.round(total);
+  document.getElementById('totalWords').textContent = readMoney(totalInt);
+
+  document.getElementById('payMethodRow').style.display = document.getElementById('showPayMethod').checked ? 'block' : 'none';
+  document.getElementById('discountRow').style.display = document.getElementById('showDiscount').checked ? 'table-row' : 'none';
+  
+  console.log('✅ Preview updated - Total:', formatCurrency(total));
+}
+
+
+// Price input formatting
+const priceInput = document.getElementById('pPrice');
+priceInput.addEventListener('input', (e) => {
+  let value = e.target.value.replace(/[^0-9]/g, '');
+  if (value) {
+    e.target.value = formatCurrency(parseInt(value));
+  }
+});
+
+priceInput.addEventListener('focus', (e) => {
+  let value = parseCurrency(e.target.value);
+  e.target.value = value || '';
+});
+
+priceInput.addEventListener('blur', (e) => {
+  let value = parseCurrency(e.target.value);
+  e.target.value = formatCurrency(value);
+});
+
+// Discount type change - update max and hint
+document.querySelectorAll('input[name="discountType"]').forEach(radio => {
+  radio.addEventListener('change', () => {
+    const discountType = document.querySelector('input[name="discountType"]:checked').value;
+    const discountInput = document.getElementById('discountValue');
+    const discountHint = document.getElementById('discountHint');
+    
+    if (discountType === '%') {
+      discountInput.max = 100;
+      discountHint.textContent = 'Từ 0-100%';
+      console.log('💡 Discount type: Percentage (0-100%)');
+    } else {
+      discountInput.removeAttribute('max');
+      discountHint.textContent = 'Nhập số tiền VNĐ';
+      console.log('💡 Discount type: Fixed amount (VNĐ)');
+    }
+    saveData();
+    updatePreview();
+  });
+});
+
+// Discount value validation
+document.getElementById('discountValue').addEventListener('input', (e) => {
+  const discountType = document.querySelector('input[name="discountType"]:checked').value;
+  let value = parseFloat(e.target.value) || 0;
+  
+  if (discountType === '%' && value > 100) {
+    e.target.value = 100;
+    console.warn('⚠️ Discount capped at 100%');
+  }
+  if (value < 0) {
+    e.target.value = 0;
+  }
+});
+
+// Logo upload
+document.getElementById('logoFile').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  console.log('📸 Logo file selected:', file?.name);
+  if (file && file.type.startsWith('image/')) {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      logoDataUrl = ev.target.result;
+      const imgPrev = document.getElementById('logoPreviewImg');
+      imgPrev.src = logoDataUrl;
+      imgPrev.style.display = 'block';
+      document.getElementById('logoPreviewText').style.display = 'none';
+      document.getElementById('logoText').value = '';
+      saveData();
+      updatePreview();
+      updateShopHeader();
+      console.log('✅ Logo image loaded');
+    };
+    reader.readAsDataURL(file);
+  } else {
+    showToast('Vui lòng chọn file hình ảnh hợp lệ!', 'error');
+    console.error('❌ Invalid image file');
+  }
+});
+
+document.getElementById('logoText').addEventListener('input', (e) => {
+  const text = e.target.value.trim();
+  logoDataUrl = null;
+  document.getElementById('logoPreviewImg').style.display = 'none';
+  document.getElementById('logoPreviewText').textContent = text || 'LOGO';
+  document.getElementById('logoPreviewText').style.display = 'block';
+  document.getElementById('logoFile').value = '';
+  saveData();
+  updatePreview();
+  updateShopHeader();
+});
+
+// Auto-save
+const autoSaveInputs = ['shopName', 'shopAddr', 'shopPhone', 'invDate', 'invNo', 'discountValue'];
+autoSaveInputs.forEach(id => {
+  const el = document.getElementById(id);
+  if (el) {
+    el.addEventListener('input', () => {
+      saveData();
+      updatePreview();
+    });
+  }
+});
+
+// Radio listeners
+document.querySelectorAll('input[name="payMethod"]').forEach(radio => {
+  radio.addEventListener('change', () => {
+    saveData();
+    updatePreview();
+  });
+});
+
+// Checkbox listeners
+['showPayMethod', 'showDiscount'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) {
+    el.addEventListener('change', () => {
+      saveData();
+      updatePreview();
+    });
+  }
+});
+
+
+// Add item
+document.getElementById('pName').addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') document.getElementById('addItem').click();
+});
+
+document.getElementById('addItem').addEventListener('click', () => {
+  console.log('➕ Adding new item...');
+  const name = document.getElementById('pName').value.trim();
+  if (!name) {
+    showToast('Vui lòng nhập tên sản phẩm!', 'warning');
+    document.getElementById('pName').focus();
+    console.warn('⚠️ Product name is empty');
+    return;
+  }
+  const qty = parseInt(document.getElementById('pQty').value) || 1;
+  if (qty < 1) {
+    showToast('Số lượng phải lớn hơn 0!', 'warning');
+    document.getElementById('pQty').focus();
+    console.warn('⚠️ Invalid quantity:', qty);
+    return;
+  }
+  const price = parseCurrency(document.getElementById('pPrice').value) || 0;
+  if (price < 0) {
+    showToast('Đơn giá không được âm!', 'warning');
+    document.getElementById('pPrice').focus();
+    console.warn('⚠️ Invalid price:', price);
+    return;
+  }
+  items.push({
+    name,
+    qty,
+    price
+  });
+  console.log('✅ Item added:', { name, qty, price });
+  showToast('Đã thêm sản phẩm thành công!', 'success');
+  document.getElementById('pName').value = '';
+  document.getElementById('pQty').value = '1';
+  document.getElementById('pPrice').value = formatCurrency(0);
+  renderItems();
+  saveData();
+  updatePreview();
+  document.getElementById('pName').focus();
+});
+
+// Clear data
+document.getElementById('clearData').addEventListener('click', () => {
+  if (!confirm('Bạn có chắc muốn xóa tất cả dữ liệu?')) return;
+  
+  console.log('🗑️ Clearing all data...');
+  Object.values(STORAGE_KEYS).forEach(key => localStorage.removeItem(key));
+
+  items = [];
+  logoDataUrl = null;
+  document.getElementById('shopName').value = 'HADO THANH LÝ KÝ GỬI';
+  document.getElementById('shopAddr').value = '30/7 Nguyễn Hiến Lê, P.13, Tân Bình, HCM';
+  document.getElementById('shopPhone').value = '0987406603';
+  document.getElementById('invDate').value = new Date().toLocaleDateString('vi-VN');
+  document.getElementById('invNo').value = '0001';
+
+  const payRadioDefault = document.querySelector('input[name="payMethod"][value="Tiền mặt"]');
+  if (payRadioDefault) payRadioDefault.checked = true;
+  document.getElementById('showPayMethod').checked = true;
+
+  const discRadioDefault = document.querySelector('input[name="discountType"][value="%"]');
+  if (discRadioDefault) discRadioDefault.checked = true;
+  document.getElementById('discountValue').value = '0';
+  document.getElementById('showDiscount').checked = true;
+
+  document.getElementById('logoText').value = '';
+  document.getElementById('logoFile').value = '';
+  document.getElementById('logoPreviewImg').style.display = 'none';
+  document.getElementById('logoPreviewText').textContent = 'LOGO';
+  document.getElementById('logoPreviewText').style.display = 'block';
+
+  renderItems();
+  saveData();
+  updatePreview();
+  console.log('✅ All data cleared');
+});
+
+// Print
+document.getElementById('printBtn').addEventListener('click', () => {
+  console.log('🖨️ Printing invoice...');
+  if (!items || items.length === 0) {
+    if (!confirm('Chưa có sản phẩm nào. Bạn có muốn in hóa đơn trống không?')) {
+      console.log('❌ Print cancelled - no items');
+      return;
+    }
+  }
+  updatePreview();
+  
+  // Calculate actual height of invoice content
+  setTimeout(() => {
+    const invoiceContent = document.getElementById('invoiceContent');
+    const actualHeight = invoiceContent.offsetHeight;
+    const heightInMM = Math.ceil((actualHeight / 96) * 25.4) + 6; // Convert px to mm, add 6mm padding
+    
+    console.log('📏 Invoice height:', actualHeight, 'px =', heightInMM, 'mm');
+    
+    // Inject dynamic print style
+    let dynamicStyle = document.getElementById('dynamicPrintStyle');
+    if (!dynamicStyle) {
+      dynamicStyle = document.createElement('style');
+      dynamicStyle.id = 'dynamicPrintStyle';
+      document.head.appendChild(dynamicStyle);
+    }
+    
+    dynamicStyle.textContent = `
+      @media print {
+        @page {
+          size: 74mm ${heightInMM}mm !important;
+        }
+      }
+    `;
+    
+    setTimeout(() => {
+      console.log('✅ Opening print dialog with size: 74mm x', heightInMM, 'mm');
+      window.print();
+    }, 100);
+  }, 100);
+});
+
+// Init
+(function init() {
+  console.log('🎬 Initializing app...');
+  loadData();
+  const invDateEl = document.getElementById('invDate');
+  if (!invDateEl.value) invDateEl.value = new Date().toLocaleDateString('vi-VN');
+
+  // Initialize price input
+  document.getElementById('pPrice').value = formatCurrency(0);
+
+  renderItems();
+  updatePreview();
+  console.log('✅ App initialized successfully!');
+  console.log('📊 Current items:', items.length);
+})();
+
+console.log('🎉 Invoice Generator Ready!');
+</script>
+
+</body>
+</html>
